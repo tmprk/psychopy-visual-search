@@ -11,7 +11,7 @@ filename = u'data/{0}_{1}'.format('test', '102821')
 dir_path = os.getcwd()
 expt = data.ExperimentHandler(name='Visual Search', version='1.0.0', originPath=dir_path, saveWideText=True,
     dataFileName=filename)
-elements_per_stimulus = [8]
+elements_per_stimulus = [12]
 # elements_per_stimulus = [8, 12, 16, 20]
 
 
@@ -74,6 +74,9 @@ def run_routine(trial_type):
             itemToChange.orientation = targetItem.orientation
         elif trial_type == trialtype.DISTRACTOR_MISMATCHED:
             print('distractor mismatched')
+            itemToChange = [x for x in stimulus_array if x.distractor == True][0]
+            targetItem = [x for x in stimulus_array if x.shape == 'square'][0]
+            itemToChange.orientation = targetItem.orientation + 90
             # If the trial type is a distractor non-matched, make all red and one green with different orientations as target lines
 
     for index, element in enumerate(stimulus_array):
@@ -122,5 +125,5 @@ print(sequence)
 for item in sequence:
     run_routine(trialtype(item))
     mainWindow.update()
-    core.wait(3)
+    core.wait(5)
     print('time:', clock.getTime())
