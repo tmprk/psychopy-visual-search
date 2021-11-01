@@ -12,7 +12,7 @@ from enum import Enum
 class Stimulus(object):
 
     shapes = ['circle', 'square']
-    orientations = [45, 135] # was set to [0, 90] but seems to give me 45 diagonal
+    orientations = [45, 135] # was set to [0, 90] but it seems to give me 45 degrees off
     adjust = [-22.5, 22.5]
     colors = ['green', 'red']
     lineWidth = 3 #px

@@ -1,18 +1,22 @@
 import os
 import math
 import numpy as np
-from psychopy import visual, core, data
+from datetime import datetime
+from psychopy import visual, core, data, event
 from enum import Enum
 from stim import Stimulus
 
 # todo add a prompt to college participant name
-clock = core.MonotonicClock() # initialize clock at the start of the experiment
-filename = u'data/{0}_{1}'.format('test', '102821')
-dir_path = os.getcwd()
-expt = data.ExperimentHandler(name='Visual Search', version='1.0.0', originPath=dir_path, saveWideText=True,
+global_clock = core.MonotonicClock() # initialize clock at the start of the experiment
+filename = u'data/{0}_{1}'.format('test', datetime.today().strftime('%Y-%m-%d_%H-%M-%S'))
+directory_path = os.getcwd()
+expt = data.ExperimentHandler(name='Visual Search', version='1.0.0', originPath=directory_path, saveWideText=True,
     dataFileName=filename)
+expt.addData('experiment_start', global_clock.getTime())
+
 elements_per_stimulus = [12]
 # elements_per_stimulus = [8, 12, 16, 20]
+mainWindow = visual.Window(size=[1280, 800], monitor='testMonitor', fullscr=False, useRetina=True, pos=[0, 0], color='black', units='deg')
 
 
 class trialtype(Enum):
@@ -37,15 +41,32 @@ def create_distribution(size):
     return arr
 
 
+# https://stackoverflow.com/questions/23411688/drawing-polygon-with-n-number-of-sides-in-python-3-2
+def polygon(sides, radius=6, rotation=0, translation=None):
+    one_segment = math.pi * 2 / sides
+    points = [
+        (math.sin(one_segment * i + rotation) * radius,
+         math.cos(one_segment * i + rotation) * radius)
+        for i in range(sides)]
+    if translation:
+        points = [[sum(pair) for pair in zip(point, translation)] for point in points]
+    return points
+
+
 # function to run a single routine
 def run_routine(trial_type):
+    running = True
+    correct_answer = None
+    event.clearEvents(eventType='keyboard')
+    expt.addData('routine_start', global_clock.getTime()) # or maybe use separate clock?
+
     number_of_elements = np.random.choice(elements_per_stimulus)
     stimulus_array = [Stimulus() for _ in range(number_of_elements)]
     coordinates_array = polygon(number_of_elements)
     # todo store the correct answer depending on the condition
 
     if trial_type == trialtype.NO_DISTRACTOR:
-        print('no distractor, set all to green\n')
+        print('no distractor, set all to green')
         # If the trial type is no distractor, all green and random orientation of target line
         # populate shape_array with number_of_elements, all green. One square as the target at a random location and the rest circles.
 
@@ -56,7 +77,7 @@ def run_routine(trial_type):
         # randomize the location of the target
         setattrs(stimulus_array[np.random.randint(0, len(stimulus_array) - 1)], shape='square')
     else:
-        print('distractor is present, set all to red\n')
+        print('distractor is present, one of two cases. set all to red\n')
         for element in stimulus_array:
             setattr(element, 'color', 'red')
         
@@ -66,23 +87,25 @@ def run_routine(trial_type):
         # create the target (a square) but make sure it's not the distractor
         np.random.choice([item for item in stimulus_array if item.distractor == False]).shape = 'square'
 
+        itemToChange = [x for x in stimulus_array if x.distractor == True][0]
+        targetItem = [x for x in stimulus_array if x.shape == 'square'][0]
         if trial_type == trialtype.DISTRACTOR_MATCHED:
-            print('distractor matched\n')
             # If the trial type is a distractor matched, make all red and one green with same orientation as target line
-            itemToChange = [x for x in stimulus_array if x.distractor == True][0]
-            targetItem = [x for x in stimulus_array if x.shape == 'square'][0]
+            print('distractor matched\n')
             itemToChange.orientation = targetItem.orientation
         elif trial_type == trialtype.DISTRACTOR_MISMATCHED:
-            print('distractor mismatched')
-            itemToChange = [x for x in stimulus_array if x.distractor == True][0]
-            targetItem = [x for x in stimulus_array if x.shape == 'square'][0]
-            itemToChange.orientation = targetItem.orientation + 90
             # If the trial type is a distractor non-matched, make all red and one green with different orientations as target lines
+            print('distractor mismatched')
+            itemToChange.orientation = targetItem.orientation + 90
+        correct_answer = 'horizontal' if (itemToChange.orientation == 45) else 'vertical'
 
     for index, element in enumerate(stimulus_array):
         element.position = coordinates_array[index]
 
-    print('\nnum of shapes:', len(stimulus_array), '\n')
+    fixation_stimulus = visual.GratingStim(win=mainWindow, mask='cross', size=0.5, pos=[0,0], sf=0, color='white')
+    fixation_stimulus.draw()
+    print('number of shapes:', len(stimulus_array), '\n')
+    
     for stimulus in stimulus_array:
         print(stimulus)
         if stimulus.shape == 'circle':
@@ -95,35 +118,39 @@ def run_routine(trial_type):
             square.draw()
             line = visual.Line(win=mainWindow, pos=stimulus.position, ori=stimulus.orientation, lineColor='white', size=0.5, lineWidth=4)
             line.draw()
+            
+    mainWindow.flip()
+    startTime = global_clock.getTime() # todo: get the time when stimuli are drawn
+    expt.addData('stimuli_presented', startTime)
 
-    # testing getting the response times and writing to csv. RT = (time stimuli appear) - (time keystroke is detected)
-    startTime = clock.getTime() # todo: get the time when stimuli are drawn
-    expt.addData('resp.rt', 0.8)
+    while running:
+        if event.getKeys(keyList=["escape"], timeStamped=False):
+            print('quitting')
+            mainWindow.close()
+            core.quit()
+        
+        response = event.getKeys(keyList=['z', 'm'], timeStamped=global_clock)
+        for key in response:
+            print(key)
+            letter = key[0]
+            timestamp = key[1]
+            if letter == 'z' or letter == 'm':
+                print('z or m')
+                expt.addData('key_press', letter)
+                expt.addData('orientation', 'horizontal') # or vertical
+                expt.addData('response_time', timestamp)
+                running = False
+        
+    expt.addData('correct_answer', correct_answer)
     expt.nextEntry()
-
-
-# https://stackoverflow.com/questions/23411688/drawing-polygon-with-n-number-of-sides-in-python-3-2
-def polygon(sides, radius=6, rotation=0, translation=None):
-    one_segment = math.pi * 2 / sides
-    points = [
-        (math.sin(one_segment * i + rotation) * radius,
-         math.cos(one_segment * i + rotation) * radius)
-        for i in range(sides)]
-    if translation:
-        points = [[sum(pair) for pair in zip(point, translation)] for point in points]
-    return points
-
-# initialize experiment
-mainWindow = visual.Window(size=[1280, 800], monitor='testMonitor', fullscr=True, useRetina=True, pos=[0, 0], color='black', units='deg')
+    # todo: RT = (time stimuli appear) - (time keystroke is detected)
 
 # returns array of [0s, 1s, and 2s], 0 being no distractor, 1 being distractor with matching line, and 2 being distractor mismatching
 # half have distractors, half of the distractors' target and distractor's are mismatched. 0.5, 0.25, 0.25 but shuffled
 # sequence = create_distribution(4)
-sequence = [0]
-print(sequence)
+sequence = [0, 1]
+print('sequence', sequence)
 
-for item in sequence:
-    run_routine(trialtype(item))
-    mainWindow.update()
-    core.wait(5)
-    print('time:', clock.getTime())
+if __name__ == '__main__':
+    for item in sequence:
+        run_routine(trialtype(item))
